@@ -1,4 +1,5 @@
 {
+  "framework": null,
   "functions": { "api/simulate.py": { "maxDuration": 10, "includeFiles": "api/_core/**" } },
   "headers": [
     { "source": "/(.*)", "headers": [ { "key": "X-Content-Type-Options", "value": "nosniff" } ] }
