@@ -8,6 +8,7 @@ import { Playback, playbackControls, bindKeys } from '../playback.js';
 import { moduleInput, prefs, recent, saved, progress } from '../store.js';
 import { exportCSV, exportJSON } from '../export.js';
 import { learnPanel } from './learn.js';
+import { introBox } from '../basics.js';
 
 export function mountWorkspace(root, weekN, algParam) {
   const wk = getWeek(weekN);
@@ -125,19 +126,29 @@ export function mountWorkspace(root, weekN, algParam) {
   const extra = spec.extras && alg === 'fifo' ? h('div', { class: 'extras' }, h('h4', { text: "Belady's anomaly demonstration" }), h('p', { class: 'muted', text: 'FIFO with more frames can fault more. Counts below come from the same Python FIFO code.' })) : null;
   if (extra) spec.extras(extra);
 
+  const algName = spec.algorithms[alg] || alg;
+  const learn = learnPanel(alg, spec.id, extra);
+  const learnSec = h('section', { class: 'panel learn-panel', id: 'learn', 'aria-labelledby': 'h-learn' }, h('h2', { id: 'h-learn', text: 'Learn more: theory, viva questions and code' }), h('p', { class: 'muted', text: spec.tradeoffs }), learn);
+  const codeBtn = h('button', { type: 'button', class: 'btn btn-secondary', onClick: () => { learn.openTab('Code'); learnSec.scrollIntoView({ behavior: prefs.get().motion ? 'smooth' : 'auto' }); } },
+    icon('code'), h('span', { text: 'View code (C, C++, Java)' }));
+  const head = (n, id, title, hint) => [h('h2', { id }, h('span', { class: 'step-n', text: n }), title), hint ? h('p', { class: 'hint panel-hint', text: hint }) : null];
+
   root.append(
     h('header', { class: 'page-head' }, h('h1', { text: `Week ${wk.n}: ${wk.topic}` }), h('p', { class: 'lede', text: wk.blurb })),
-    h('section', { class: 'panel selector', 'aria-label': 'Algorithm selector' }, h('h2', { class: 'sr-only', text: 'Algorithm' }), tabs, compareBar),
+    introBox(h, spec.id, alg, algName),
+    h('section', { class: 'panel selector', 'aria-label': 'Algorithm selector' }, h('h2', { class: 'sr-only', text: 'Algorithm' }),
+      h('div', { class: 'selector-main' }, h('span', { class: 'qlabel', text: wk.algs.length > 1 ? 'Pick an algorithm' : 'Algorithm' }), tabs), h('div', { class: 'compare-bar' }, codeBtn, compareBar)),
     h('div', { class: 'ws-grid' },
-      h('section', { class: 'panel inputs', 'aria-labelledby': 'h-in' }, h('h2', { id: 'h-in', text: 'Custom inputs' }),
+      h('section', { class: 'panel inputs', 'aria-labelledby': 'h-in' }, head('1', 'h-in', 'Your input', 'Type your own values, or load a ready-made sample.'),
         h('div', { class: 'toolbar' }, sampleSel, button('Random', { icon: 'shuffle', small: true, onClick: () => setInput(spec.random()), title: 'Generate random input' }),
           button('Reset', { icon: 'reset', small: true, onClick: () => setInput(spec.defaultInput()), title: 'Restore the default example' })), el.inputs),
-      h('section', { class: 'panel settings', 'aria-labelledby': 'h-set' }, h('h2', { id: 'h-set', text: 'Simulation settings' }), el.settings, h('div', { class: 'toolbar' }, runBtn)),
-      h('section', { class: 'panel viz', 'aria-labelledby': 'h-viz' }, h('h2', { id: 'h-viz', text: `${spec.algorithms[alg] || alg} visualization` }), el.errors, el.stale, el.viz,
+      h('section', { class: 'panel settings', 'aria-labelledby': 'h-set' }, head('2', 'h-set', 'Settings, then run', 'The defaults are fine to start with. Press Run simulation after changing anything.'), el.settings, h('div', { class: 'toolbar' }, runBtn)),
+      h('section', { class: 'panel viz', 'aria-labelledby': 'h-viz' }, head('3', 'h-viz', `Watch ${algName} step by step`, 'Press Play, or Next step to go one decision at a time. The box underneath explains each decision.'), el.errors, el.stale, el.viz,
         h('div', { class: 'viz-controls' }, controls.el), el.explain),
-      h('section', { class: 'panel log', 'aria-labelledby': 'h-log' }, h('h2', { id: 'h-log', text: 'Step-by-step execution log' }), h('p', { class: 'hint', text: 'Click any step to jump to it. Stepping back restores the exact earlier state.' }), el.log),
-      h('section', { class: 'panel metrics', 'aria-labelledby': 'h-met' }, h('div', { class: 'panel-head' }, h('h2', { id: 'h-met', text: 'Performance metrics' }), h('div', { class: 'toolbar' }, saveBtn, csvBtn, jsonBtn)), el.metrics, el.results, el.notes)),
-    h('section', { class: 'panel learn-panel', 'aria-label': 'Explanation and comparison' }, h('h2', { text: 'Comparison and explanation' }), h('p', { class: 'muted', text: spec.tradeoffs }), learnPanel(alg, spec.id, extra)));
+      h('section', { class: 'panel log', 'aria-labelledby': 'h-log' }, head('4', 'h-log', 'Every step in words', 'Click any step to jump to it.'), el.log),
+      h('section', { class: 'panel metrics', 'aria-labelledby': 'h-met' }, h('div', { class: 'panel-head' }, head('5', 'h-met', 'Results'), h('div', { class: 'toolbar' }, saveBtn, csvBtn, jsonBtn)),
+        h('p', { class: 'hint panel-hint', text: 'Hover a number to see how it is calculated.' }), el.metrics, el.results, el.notes)),
+    learnSec);
 
   drawInputs(); drawSettings(); controls.sync(); updateButtons();
   lastRunInput = {};

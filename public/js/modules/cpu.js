@@ -25,7 +25,7 @@ export const cpu = {
         { key: 'priority', label: 'Priority', numeric: true, size: 4 }],
       newRow: (rows) => P(nextId(rows, 'id', 'P'), 0, 1, 1),
     }));
-    el.append(h('p', { class: 'hint', text: 'Arrival and priority are whole numbers 0 or more (priority may be any integer); burst must be 1 or more.' }));
+    el.append(h('p', { class: 'hint', text: 'Arrival = the time a process joins the line. Burst = how long it needs the processor (1 or more). Priority = how important it is (only used by Priority scheduling). All whole numbers.' }));
   },
   renderSettings(el, input, algs, onChange) {
     if (algs.includes('rr')) el.append(field('Round Robin time quantum', textInput(input.quantum, (v) => { input.quantum = v; onChange(); }, { inputmode: 'numeric', class: 'num', size: 4 }), 'A positive whole number.'));
@@ -35,7 +35,7 @@ export const cpu = {
     if (algs.includes('sjf') || algs.includes('priority')) {
       el.append(checkbox('Preemptive variant (extension)', !!input.preemptive, (v) => { input.preemptive = v; onChange(); }, 'SJF becomes Shortest Remaining Time First; Priority becomes preemptive. Off = the required non-preemptive versions.'));
     }
-    el.append(h('p', { class: 'hint', text: 'Clock starts at t=0. Ties: SJF by burst, then arrival, then ID. Priority by arrival, then ID. Round Robin queues arrivals before the pre-empted process.' }));
+    el.append(h('p', { class: 'hint', text: 'The clock starts at time 0. When two processes are equally good choices, the one that arrived first (then the one listed first) goes next. Round Robin puts newly arrived processes in line before the one whose turn just ended.' }));
   },
 
   metrics(r) {
@@ -102,8 +102,8 @@ export const cpu = {
         clear(queues);
         const row = (label, items) => h('div', { class: 'qrow' }, h('span', { class: 'qlabel', text: label }),
           items.length ? items.map((q, n) => chip(`${q.id}${q.remaining !== undefined ? ` (${q.remaining})` : ''}`, n === 0 && s.pid ? 'chip-run' : '', { '--c': pcolor(idx[q.id]) })) : h('span', { class: 'muted', text: 'empty' }));
-        queues.append(row(r.algorithm === 'rr' ? 'Ready queue at decision (head first)' : 'Ready at decision (next to run first)', s.ready));
-        if (r.algorithm === 'rr') queues.append(row('Queue after this slice', (s.queue_after || []).map((id) => ({ id, remaining: s.remaining[id] }))));
+        queues.append(row(r.algorithm === 'rr' ? 'Waiting in line (front first)' : 'Waiting in line (next to run first)', s.ready));
+        if (r.algorithm === 'rr') queues.append(row('Line after this turn', (s.queue_after || []).map((id) => ({ id, remaining: s.remaining[id] }))));
         clear(tbody);
         r.processes.forEach((p) => {
           const [label, tone, ic] = stateOf(p, s);
