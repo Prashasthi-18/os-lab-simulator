@@ -135,3 +135,33 @@ ul.plain li { margin-bottom: 0.35rem; max-width: 80ch; }
 .axis-note { margin: 1.8rem 0 0.5rem; font-size: var(--step--1); }
 .belady-out { margin-top: 1rem; display: grid; gap: 1rem; }
 @media (max-width: 700px) { .btn { white-space: normal; text-align: left; } .compare-bar { width: 100%; } }
+
+/* Beginner intro */
+.intro { border: 1px solid var(--accent); border-radius: var(--r-md); background: var(--accent-soft); padding: 0.75rem 1rem; margin: 0.75rem 0 1rem; max-width: 80ch; }
+.intro summary { cursor: pointer; font-weight: 700; }
+.intro-steps { margin: 0.6rem 0; padding-left: 1.25rem; display: grid; gap: 0.4rem; }
+.intro-read { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; align-items: center; font-size: var(--step--1); margin: 0.5rem 0; }
+.intro-try { margin: 0.5rem 0 0; }
+
+/* Numbered workspace sections */
+.step-n { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; margin-right: 0.5rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 0.8em; vertical-align: 0.1em; }
+.panel-hint { margin-top: -0.25rem; }
+.selector-main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+
+/* Code viewer */
+.code-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.6rem; margin: 0.5rem 0; }
+.code-block { margin: 0; max-height: 34rem; overflow: auto; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); font: 0.8125rem/1.55 var(--font-mono); tab-size: 4; }
+.code-block code { background: none; padding: 0; font-size: inherit; white-space: pre; }
+.tk-com { color: var(--ink-3); font-style: italic; }
+.tk-str { color: var(--ok); }
+.tk-pre { color: var(--p2); }
+.tk-num { color: var(--warn); }
+.tk-kw { color: var(--accent); font-weight: 600; }
+
+/* Dashboard: how this website works */
+.how { margin: 1.5rem 0 2rem; }
+.how-steps { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+.how-steps li { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.how-steps li .step-n { flex: none; margin: 0; }
+.how-steps p { margin: 0.25rem 0 0; color: var(--ink-2); font-size: var(--step--1); }
+.wc-plain { font-weight: 600; color: var(--ink); }

@@ -18,17 +18,20 @@ export const files = {
 
   renderInputs(el, input, algs, onChange, ctx = {}) {
     const manual = input.mode === 'manual' && !ctx.compare;
-    const cols = [{ key: 'name', label: 'File', size: 5 }, { key: 'size', label: 'Bytes', numeric: true, size: 6 }];
+    const cols = [{ key: 'name', label: 'File', size: 5 }, { key: 'size', label: 'Size (bytes)', numeric: true, size: 6 }];
     if (manual) {
       if (algs.includes('sequential')) cols.push({ key: 'start', label: 'Start block', numeric: true, size: 4 });
       if (algs.includes('indexed') && !algs.includes('sequential')) cols.push({ key: 'start', label: 'Index block', numeric: true, size: 4 });
       if (algs.includes('indexed') || algs.includes('linked')) cols.push({ key: 'blocks', label: algs.includes('linked') ? 'Data blocks (chain order)' : 'Data blocks', size: 10 });
     }
     el.append(editableTable({ label: 'Files', rows: input.files, onChange, columns: cols, newRow: (rows) => F(nextId(rows, 'name', 'F'), 1000) }));
-    el.append(h('p', { class: 'hint', text: manual ? 'Manual mode: you choose the blocks. Conflicts with reserved or earlier files are refused and shown.' : 'Automatic policy: lowest-numbered free blocks (Sequential: first contiguous run that fits).' }));
+    const bs = Number(input.block_size), usable = algs.length === 1 && algs[0] === 'linked' ? bs - 4 : bs;
+    const perBlock = usable > 0 ? `Each block holds ${usable} bytes of file data${usable !== bs ? ` (4 of the ${bs} are kept for the "next block" note)` : ''}, so a 1000-byte file needs ${Math.ceil(1000 / usable)} blocks. ` : '';
+    el.append(h('p', { class: 'hint', text: perBlock + (manual ? 'Manual mode: you choose the blocks. Choices that clash with reserved blocks or earlier files are refused and shown in red.'
+      : algs.length === 1 && algs[0] === 'sequential' ? 'Each file goes into the first gap of side-by-side free blocks that is big enough.' : 'Each file goes into the lowest-numbered free blocks.') }));
   },
   renderSettings(el, input, algs, onChange, ctx = {}) {
-    const num = (key, label, hint) => field(label, textInput(input[key], (v) => { input[key] = v; onChange(); }, { inputmode: 'numeric', class: 'num', size: 5 }), hint);
+    const num = (key, label, hint) => field(label, textInput(input[key], (v) => { input[key] = v; onChange(); if (key === 'block_size') ctx.rerenderInputs?.(); }, { inputmode: 'numeric', class: 'num', size: 5 }), hint);
     el.append(h('div', { class: 'row-fields' }, num('total_blocks', 'Disk blocks', '4 to 128'), num('block_size', 'Block size (bytes)', '8 or more')),
       field('Reserved blocks (unavailable)', textInput(input.reserved, (v) => { input.reserved = v; onChange(); }, { placeholder: 'e.g. 3, 4, 9' }), 'Comma-separated block numbers, counting from 0.'));
     if (ctx.compare) { input.mode = 'auto'; el.append(h('p', { class: 'hint', text: 'Comparison always uses automatic allocation so every strategy follows the same fair policy.' })); }
@@ -67,14 +70,16 @@ export const files = {
       const el = h('button', { type: 'button', class: 'bcell', 'aria-label': `Block ${b}`, onClick: () => { const d = r.steps[snapAt(cur)].disk[b]; selected = d.file && d.file !== selected ? d.file : null; paint(); } }, num, tag, ptr);
       return { el, tag, ptr };
     });
-    const legend = h('div', { class: 'legend' }, [['free', 'Free'], ['data', 'File data'], ['index', 'Index block'], ['reserved', 'Reserved / unavailable'], ['invalid', 'Refused (conflict)']]
-      .map(([c, l]) => h('span', { class: 'lg' }, h('i', { class: `sw sw-${c}` }), l)), h('span', { class: 'lg', text: 'Pointer: "to n" = next block, EOF = end of file. Click a block to highlight its file.' }));
+    const keys = [['free', 'Free box'], ['data', 'Piece of a file'], r.algorithm === 'indexed' && ['index', 'Index (list of a file\'s boxes)'],
+      r.config.reserved?.length && ['reserved', 'Taken (not available)'], r.steps.some((s) => s.invalid?.length) && ['invalid', 'Refused (clash)']].filter(Boolean);
+    const legend = h('div', { class: 'legend' }, keys.map(([c, l]) => h('span', { class: 'lg' }, h('i', { class: `sw sw-${c}` }), l)),
+      h('span', { class: 'lg', text: r.algorithm === 'linked' ? '"→ 4" = next piece is in box 4. Click a box to highlight its file.' : 'Click a box to highlight its file.' }));
     const fileChips = h('div', { class: 'qrow' });
     const detail = h('div', { class: 'detail' });
     const tbody = h('tbody');
     const fat = h('div', { class: 'table-wrap' }, h('table', { class: 'data', 'aria-label': 'File allocation table' },
-      h('thead', {}, h('tr', {}, ['File', 'Bytes', 'Result', 'Start / index', 'Blocks', 'Data', 'Index', 'Total'].map((c) => h('th', { scope: 'col', text: c })))), tbody));
-    root.append(h('div', { class: 'disk', style: { '--cols': Math.min(N, N <= 16 ? 8 : 10) } }, cells.map((c) => c.el)), legend, fileChips, detail, h('div', { class: 'matrix-title', text: 'File allocation table' }), fat);
+      h('thead', {}, h('tr', {}, ['File', 'Size (bytes)', 'Result', r.algorithm === 'indexed' ? 'Index box' : 'First box', 'Boxes used', 'Count'].map((c) => h('th', { scope: 'col', text: c })))), tbody));
+    root.append(h('div', { class: 'disk', style: { '--cols': Math.min(N, N <= 16 ? 8 : 10) } }, cells.map((c) => c.el)), legend, fileChips, detail, h('div', { class: 'matrix-title', text: 'Where each file was stored' }), fat);
 
     function paint() {
       const s = r.steps[cur], si = snapAt(cur), snap = r.steps[si].disk;
@@ -86,21 +91,21 @@ export const files = {
         const state = bad.includes(b) ? 'invalid' : d.state;
         c.el.className = `bcell st-${state}${d.file === hlFile && d.state !== 'free' && d.state !== 'reserved' ? ' hl' : ''}${hlFile && d.file && d.file !== hlFile ? ' dim' : ''}${chain.includes(b) ? ' trav' : ''}${s.type === 'traverse' && s.block === b ? ' trav-now' : ''}`;
         c.el.style.setProperty('--c', d.file ? pcolor(fidx[d.file]) : 'transparent');
-        c.tag.textContent = state === 'invalid' ? '!' : state === 'index' ? `IDX ${d.file}` : state === 'data' ? `${d.file}${d.pos + 1}` : state === 'reserved' ? 'res' : 'free';
-        c.ptr.textContent = d.state === 'data' && r.algorithm === 'linked' ? (d.next === null ? 'EOF' : `to ${d.next}`) : '';
+        c.tag.textContent = state === 'invalid' ? '!' : state === 'index' ? `${d.file} index` : state === 'data' ? `${d.file} part ${d.pos + 1}` : state === 'reserved' ? 'taken' : 'free';
+        c.ptr.textContent = d.state === 'data' && r.algorithm === 'linked' ? (d.next === null ? '→ end' : `→ ${d.next}`) : '';
       });
       put(clear(fileChips), h('span', { class: 'qlabel', text: 'Files' }), r.files.map((f, k) => {
         const done = r.steps.findIndex((x) => x.type === 'allocate' && x.file === f.name) <= cur;
         return h('button', { type: 'button', class: `chip chip-btn ${f.name === hlFile ? 'chip-run' : ''}`, style: { '--c': pcolor(k) }, 'aria-pressed': String(f.name === hlFile),
-          onClick: () => { selected = selected === f.name ? null : f.name; paint(); } }, `${f.name}${done ? (f.ok ? ' allocated' : ' failed') : ' waiting'}`);
+          onClick: () => { selected = selected === f.name ? null : f.name; paint(); } }, `${f.name}: ${done ? (f.ok ? 'stored' : 'did not fit') : 'waiting'}`);
       }));
       const fr = r.files.find((f) => f.name === hlFile);
       clear(detail);
       if (fr && r.steps.findIndex((x) => x.type === 'allocate' && x.file === hlFile) <= cur) {
         if (!fr.ok) detail.append(h('div', { class: 'callout callout-bad' }, icon('warn'), h('span', { text: fr.reason })));
-        else if (r.algorithm === 'indexed') detail.append(h('div', { class: 'callout' }, h('strong', { text: `Index block ${fr.index_block} (metadata)` }), h('div', { class: 'mapping' }, fr.blocks.map((b, k) => chip(`entry ${k} to block ${b}`)))));
-        else if (r.algorithm === 'linked') detail.append(h('div', { class: 'callout' }, h('strong', { text: `Chain for ${fr.name}` }), h('div', { class: 'mapping' }, fr.blocks.map((b) => chip(String(b))).flatMap((c, k, a) => (k < a.length - 1 ? [c, h('span', { class: 'arrow', text: 'to' })] : [c, h('span', { class: 'arrow', text: 'to EOF' })])))));
-        else detail.append(h('div', { class: 'callout' }, h('strong', { text: `Contiguous range ${fr.blocks[0]} to ${fr.blocks[fr.blocks.length - 1]}` }), ` (${fr.data_blocks} blocks, start block ${fr.blocks[0]})`));
+        else if (r.algorithm === 'indexed') detail.append(h('div', { class: 'callout' }, h('div', {}, h('strong', { text: `File ${fr.name}'s index is box ${fr.index_block}. It lists where each piece is:` }), h('div', { class: 'mapping' }, fr.blocks.map((b, k) => chip(`part ${k + 1} → box ${b}`))))));
+        else if (r.algorithm === 'linked') detail.append(h('div', { class: 'callout' }, h('div', {}, h('strong', { text: `To read file ${fr.name}, start at box ${fr.blocks[0]} and follow the notes:` }), h('div', { class: 'mapping' }, fr.blocks.map((b) => [chip(`box ${b}`), h('span', { class: 'arrow', text: '→' })]), h('span', { class: 'arrow', text: 'end' })))));
+        else detail.append(h('div', { class: 'callout' }, h('span', {}, h('strong', { text: `File ${fr.name} sits in boxes ${fr.blocks[0]} to ${fr.blocks[fr.blocks.length - 1]}` }), `, side by side (${fr.data_blocks} boxes).`)));
       }
       clear(tbody);
       r.files.forEach((f, k) => {
@@ -108,9 +113,9 @@ export const files = {
         if (idx > cur) return;
         tbody.append(h('tr', { class: f.name === hlFile ? 'row-active' : '' },
           h('td', {}, h('span', { class: 'pdot', style: { '--c': pcolor(k) } }), f.name), h('td', { text: f.size }),
-          h('td', {}, h('span', { class: `state state-${f.ok ? 'ok' : 'bad'}` }, icon(f.ok ? 'check' : 'x', 12), f.ok ? 'Allocated' : 'Failed')),
+          h('td', {}, h('span', { class: `state state-${f.ok ? 'ok' : 'bad'}` }, icon(f.ok ? 'check' : 'x', 12), f.ok ? 'Stored' : 'Did not fit')),
           h('td', { text: f.ok ? (r.algorithm === 'indexed' ? f.index_block : f.blocks[0]) : '–' }), h('td', { text: f.ok ? f.blocks.join(', ') : '–' }),
-          h('td', { text: f.data_blocks }), h('td', { text: f.meta_blocks }), h('td', { text: f.ok ? f.total_blocks : '–' })));
+          h('td', { text: !f.ok ? '–' : f.meta_blocks ? `${f.data_blocks} + ${f.meta_blocks} index` : f.total_blocks })));
       });
     }
     return { update(i) { cur = i; paint(); } };
